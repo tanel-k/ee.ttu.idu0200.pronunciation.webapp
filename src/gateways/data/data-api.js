@@ -21,4 +21,10 @@ export class DataAPI {
       .createRequest(`/words/${wordId}/pronunciation`)
       .asGet();
   }
+
+  getWordRequest(wordId) {
+    return this.client
+      .createRequest(`/words/${wordId}`)
+      .asGet();
+  }
 }

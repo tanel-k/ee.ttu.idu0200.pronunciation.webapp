@@ -89,7 +89,7 @@ define('resources/index',["exports"], function (exports) {
   exports.configure = configure;
   function configure(config) {}
 });
-define('containers/main-page/main-page',['exports', 'aurelia-framework', '../../gateways/data/data-api'], function (exports, _aureliaFramework, _dataApi) {
+define('containers/main-page/main-page',['exports', 'aurelia-framework', '../../lib/word-utils', '../../gateways/data/data-api'], function (exports, _aureliaFramework, _wordUtils, _dataApi) {
   'use strict';
 
   Object.defineProperty(exports, "__esModule", {
@@ -154,6 +154,8 @@ define('containers/main-page/main-page',['exports', 'aurelia-framework', '../../
 
       _initDefineProp(this, 'query', _descriptor, this);
 
+      this.normalizedQuery = '';
+
       this.api = api;
     }
 
@@ -168,6 +170,7 @@ define('containers/main-page/main-page',['exports', 'aurelia-framework', '../../
     MainPage.prototype.initDataModel = function initDataModel() {
       this.pronunciationLoadMap = {};
       this.pronunciationCache = {};
+      this.queryStoredInBackend = true;
       this.isLoadingWords = false;
       this.wordsLoadedPct = 0;
       this.isLoadingAudio = false;
@@ -177,27 +180,33 @@ define('containers/main-page/main-page',['exports', 'aurelia-framework', '../../
     MainPage.prototype.queryChanged = function queryChanged() {
       var _this = this;
 
+      var normalizedQuery = this.normalizedQuery = (0, _wordUtils.normalizeWord)(this.query);
       this.queryResult = [];
-      if (this.query) {
+      this.queryStoredInBackend = true;
+      if (normalizedQuery) {
         this.isLoadingWords = true;
         this.loaded = 0;
-        this.api.getWordsRequest(this.query).withDownloadProgressCallback(function (_ref) {
+
+        var doneLoading = function doneLoading(words) {
+          _this.wordsLoadedPct = 100;
+          setTimeout(function () {
+            _this.isLoadingWords = false;
+            _this.queryStoredInBackend = typeof words.find(function (word) {
+              return word.word === normalizedQuery;
+            }) !== 'undefined';
+            _this.queryResult = words;
+          }, 150);
+        };
+
+        this.api.getWordsRequest(normalizedQuery).withDownloadProgressCallback(function (_ref) {
           var loaded = _ref.loaded,
               total = _ref.total;
-          return _this.wordsLoadedPct = parseInt(loaded * 100.0 / total);
+          return _this.wordsLoadedPct = parseInt(loaded * 100.0 / total, 10);
         }).send().then(function (response) {
-          return response.content;
-        }).then(function (words) {
-          _this.queryResult = words;
-          _this.wordsLoadedPct = 100;
-          setTimeout(function () {
-            _this.isLoadingWords = false;
-          }, 150);
+          var words = response.content;
+          doneLoading(words);
         }).catch(function (err) {
-          _this.wordsLoadedPct = 100;
-          setTimeout(function () {
-            _this.isLoadingWords = false;
-          }, 150);
+          doneLoading();
         });
       }
     };
@@ -205,34 +214,46 @@ define('containers/main-page/main-page',['exports', 'aurelia-framework', '../../
     MainPage.prototype.playPronunciation = function playPronunciation(wordId) {
       var _this2 = this;
 
+      var lastModified = void 0;
       if (this.pronunciationCache[wordId]) {
-        this.playAudioBlob(this.pronunciationCache[wordId]);
-        return;
+        var prevPronunciation = this.pronunciationCache[wordId];
+        var hasNotChanged = true;
+        this.api.getWordRequest(wordId).send().then(function (response) {
+          var word = response.content;
+          lastModified = word.lastModified;
+          hasNotChanged = prevPronunciation.lastModified === lastModified;
+        });
+
+        if (hasNotChanged) {
+          this.playAudioBlob(prevPronunciation.audioBlob);
+          return;
+        }
       }
 
       var loadMap = this.pronunciationLoadMap[wordId] = {
         isAudioLoading: true,
         audioLoadedPct: 0
       };
+      var doneLoading = function doneLoading(audioBlob) {
+        loadMap.audioLoadedPct = 100;
+        setTimeout(function () {
+          loadMap.isAudioLoading = false;
+          if (audioBlob) {
+            _this2.playAudioBlob(audioBlob);
+          }
+        }, 150);
+      };
 
       this.api.getPronunciationRequest(wordId).withResponseType('blob').withDownloadProgressCallback(function (_ref2) {
         var loaded = _ref2.loaded,
             total = _ref2.total;
-        loadMap.audioLoadedPct = parseInt(loaded * 100.0 / total);console.log(loadMap.audioLoadedPct);
+        return loadMap.audioLoadedPct = parseInt(loaded * 100.0 / total, 10);
       }).send().then(function (response) {
-        return response.content;
-      }).then(function (audioBlob) {
-        _this2.pronunciationCache[wordId] = audioBlob;
-        loadMap.audioLoadedPct = 100;
-        setTimeout(function () {
-          loadMap.isAudioLoading = false;
-          _this2.playAudioBlob(audioBlob);
-        }, 150);
+        var audioBlob = response.content;
+        _this2.pronunciationCache[wordId] = { audioBlob: audioBlob, lastModified: lastModified };
+        doneLoading(audioBlob);
       }).catch(function (err) {
-        loadMap.audioLoadedPct = 100;
-        setTimeout(function () {
-          return loadMap.isAudioLoading = false;
-        }, 150);
+        doneLoading();
       });
     };
 
@@ -290,10 +311,24 @@ define('gateways/data/data-api',['exports', 'aurelia-framework', 'aurelia-http-c
       return this.client.createRequest('/words/' + wordId + '/pronunciation').asGet();
     };
 
+    DataAPI.prototype.getWordRequest = function getWordRequest(wordId) {
+      return this.client.createRequest('/words/' + wordId).asGet();
+    };
+
     return DataAPI;
   }()) || _class);
 });
+define('lib/word-utils',["exports"], function (exports) {
+  "use strict";
+
+  Object.defineProperty(exports, "__esModule", {
+    value: true
+  });
+  var normalizeWord = exports.normalizeWord = function normalizeWord(word) {
+    return word ? word.trim().toLowerCase() : word;
+  };
+});
 define('text!app.html', ['module'], function(module) { module.exports = "<template><div class=\"container\"><router-view></router-view></div></template>"; });
-define('text!containers/main-page/main-page.css', ['module'], function(module) { module.exports = ""; });
-define('text!containers/main-page/main-page.html', ['module'], function(module) { module.exports = "<template><require from=\"./main-page.css\"></require><div class=\"page-header\" id=\"banner\"><div class=\"row\"><div class=\"col-lg-8 col-md-7 col-sm-6\"><h1>Word.ly</h1><p class=\"lead\">Explore and share pronunciations</p></div></div></div><div class=\"row\"><div class=\"col-sm-12\"><input type=\"text\" placeholder=\"Start typing to find words...\" class=\"form-control\" value.bind=\"query\"></div></div><hr><div class=\"row\"><div class=\"col-sm-12\"><div if.bind=\"isLoadingWords\" class=\"progress progress-striped active\"><div class=\"progress-bar\" css=\"width: ${wordsLoadedPct}%;\"></div></div><template if.bind=\"!isLoadingWords && queryResult.length\"><ul class=\"list-group\"><li repeat.for=\"wordResult of queryResult\" class=\"list-group-item\"><h4>${wordResult.word} <small>${wordResult.id}</small></h4><div if.bind=\"loadMap[wordResult.id].isAudioLoading\" class=\"progress progress-striped active\">${loadMap[wordResult.id].audioLoadedPct}%<div class=\"progress-bar\" css=\"width: ${loadMap[wordResult.id].audioLoadedPct}%;\"></div></div><button click.delegate=\"playPronunciation(wordResult.id)\" class=\"btn btn-default\"><i class=\"fa fa-music\"></i> Listen</button> <button class=\"btn btn-default\"><i class=\"fa fa-microphone\"></i> Record</button></li></ul></template></div></div></template>"; });
+define('text!containers/main-page/main-page.css', ['module'], function(module) { module.exports = ".progress {\n  margin-bottom: 0 !important; }\n\n.word-controls-group.not-loading {\n  margin-bottom: 6px; }\n"; });
+define('text!containers/main-page/main-page.html', ['module'], function(module) { module.exports = "<template><require from=\"./main-page.css\"></require><div class=\"page-header\" id=\"banner\"><div class=\"row\"><div class=\"col-lg-8 col-md-7 col-sm-6\"><h1>Word.ly</h1><p class=\"lead\">Explore and share pronunciations</p></div></div></div><div class=\"row\"><div class=\"col-sm-12\"><input type=\"text\" placeholder=\"Start typing to find or register words...\" class=\"form-control\" value.bind=\"query\"><template if.bind=\"!queryStoredInBackend && normalizedQuery\"><span>'${normalizedQuery}' does not have an exact match. <a href=\"#\">Register this word?</a></span></template></div></div><hr><div class=\"row\"><div class=\"col-sm-12\"><div if.bind=\"isLoadingWords\" class=\"progress progress-striped active\"><div class=\"progress-bar\" css=\"width: ${wordsLoadedPct}%;\"></div></div><template if.bind=\"!isLoadingWords && queryResult.length\"><ul class=\"list-group\"><li repeat.for=\"wordResult of queryResult\" class=\"list-group-item\"><h4>${wordResult.word} <small>${wordResult.id}</small></h4><div class=\"btn-group btn-group-justified word-controls-group ${pronunciationLoadMap[wordResult.id].isAudioLoading ? '' : 'not-loading'}\" role=\"group\"><div class=\"btn-group\"><button disabled.bind=\"pronunciationLoadMap[wordResult.id].isAudioLoading\" click.delegate=\"playPronunciation(wordResult.id)\" class=\"btn btn-default\"><i if.bind=\"!pronunciationLoadMap[wordResult.id].isAudioLoading\" class=\"fa fa-music\"></i> <i if.bind=\"pronunciationLoadMap[wordResult.id].isAudioLoading\" class=\"fa fa-circle-o-notch fa-spin\"></i> Listen</button></div><div class=\"btn-group\"><button class=\"btn btn-default\"><i class=\"fa fa-microphone\"></i> Record</button></div><div class=\"btn-group\"><button class=\"btn btn-default\"><i class=\"fa fa-upload\"></i> Upload</button></div></div><div if.bind=\"pronunciationLoadMap[wordResult.id].isAudioLoading\" class=\"progress progress-striped active\"><div class=\"progress-bar\" css=\"width: ${pronunciationLoadMap[wordResult.id].audioLoadedPct}%;\"></div></div></li></ul></template><template if.bind=\"!isLoadingWords && !queryResult.length && normalizedQuery\"><h4>No results for '${normalizedQuery}'</h4></template></div></div></template>"; });
 //# sourceMappingURL=app-bundle.js.map

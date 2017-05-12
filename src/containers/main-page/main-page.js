@@ -1,11 +1,13 @@
 import { inject } from 'aurelia-framework';
 import { bindable } from 'aurelia-framework';
 
+import { normalizeWord } from '../../lib/word-utils';
 import { DataAPI } from '../../gateways/data/data-api';
 
 @inject(DataAPI)
 export class MainPage {
   @bindable query = '';
+  normalizedQuery = '';
 
   constructor(api) {
     this.api = api;
@@ -22,6 +24,7 @@ export class MainPage {
   initDataModel() {
     this.pronunciationLoadMap = {};
     this.pronunciationCache = {};
+    this.queryStoredInBackend = true;
     this.isLoadingWords = false;
     this.wordsLoadedPct = 0;
     this.isLoadingAudio = false;
@@ -29,57 +32,81 @@ export class MainPage {
   }
 
   queryChanged() {
+    const normalizedQuery = this.normalizedQuery = normalizeWord(this.query);
     this.queryResult = [];
-    if (this.query) {
+    this.queryStoredInBackend = true;
+    if (normalizedQuery) {
       this.isLoadingWords = true;
       this.loaded = 0;
-      this.api.getWordsRequest(this.query)
-        .withDownloadProgressCallback(({ loaded, total }) => this.wordsLoadedPct = parseInt(loaded * 100.0 / total))
-        .send()
-        .then((response) => (response.content))
-        .then((words) => {
+
+      const doneLoading = (words) => {
+        this.wordsLoadedPct = 100;
+        setTimeout(() => {
+          this.isLoadingWords = false;
+          this.queryStoredInBackend = typeof words.find(word => word.word === normalizedQuery) !== 'undefined';
           this.queryResult = words;
-          this.wordsLoadedPct = 100;
-          setTimeout(() => {
-            this.isLoadingWords = false;
-          }, 150);
+        }, 150);
+      };
+
+      this.api.getWordsRequest(normalizedQuery)
+        .withDownloadProgressCallback(({ loaded, total }) => this.wordsLoadedPct = parseInt(loaded * 100.0 / total, 10))
+        .send()
+        .then((response) => {
+          const words = response.content;
+          doneLoading(words);
         })
         .catch((err) => {
-          this.wordsLoadedPct = 100;
-          setTimeout(() => {
-            this.isLoadingWords = false;
-          }, 150);
+          doneLoading();
         });
     }
   }
 
   playPronunciation(wordId) {
+    // check cache
+    let lastModified;
     if (this.pronunciationCache[wordId]) {
-      this.playAudioBlob(this.pronunciationCache[wordId]);
-      return;
+      const prevPronunciation = this.pronunciationCache[wordId];
+      let hasNotChanged = true;
+      this.api.getWordRequest(wordId)
+        .send()
+        .then((response) => {
+          const word = response.content;
+          lastModified = word.lastModified;
+          hasNotChanged = prevPronunciation.lastModified === lastModified;
+        });
+
+      if (hasNotChanged) {
+        this.playAudioBlob(prevPronunciation.audioBlob);
+        return;
+      }
     }
 
+    // download audio
     const loadMap = this.pronunciationLoadMap[wordId] = {
       isAudioLoading: true,
       audioLoadedPct: 0
     };
+    const doneLoading = (audioBlob) => {
+      loadMap.audioLoadedPct = 100;
+      setTimeout(() => {
+        loadMap.isAudioLoading = false;
+        if (audioBlob) {
+          this.playAudioBlob(audioBlob);
+        }
+      }, 150);
+    };
 
     this.api.getPronunciationRequest(wordId)
       .withResponseType('blob')
-      .withDownloadProgressCallback(({ loaded, total }) => {loadMap.audioLoadedPct = parseInt(loaded * 100.0 / total); console.log(loadMap.audioLoadedPct);})
+      .withDownloadProgressCallback(({ loaded, total }) => loadMap.audioLoadedPct = parseInt(loaded * 100.0 / total, 10))
       .send()
-      .then((response) => (response.content))
-      .then((audioBlob) => {
-        this.pronunciationCache[wordId] = audioBlob;
-        loadMap.audioLoadedPct = 100;
-        setTimeout(() => {
-          loadMap.isAudioLoading = false;
-          this.playAudioBlob(audioBlob);
-        }, 150);
+      .then((response) => {
+        const audioBlob = response.content;
+        this.pronunciationCache[wordId] = { audioBlob, lastModified };
+        doneLoading(audioBlob);
       })
       .catch((err) => {
-        loadMap.audioLoadedPct = 100;
-        setTimeout(() => loadMap.isAudioLoading = false, 150);
+        doneLoading();
       });
   }
 
