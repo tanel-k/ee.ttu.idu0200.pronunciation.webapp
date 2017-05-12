@@ -13,6 +13,7 @@ export class MainPage {
     this.api = api;
     this.handleSavePronunciation = this.handleSavePronunciation.bind(this);
     this.handlePronunciationFileValidation = this.handlePronunciationFileValidation.bind(this);
+    this.handleSavePronunciationFile = this.handleSavePronunciationFile.bind(this);
   }
 
   activate() {
@@ -68,6 +69,35 @@ export class MainPage {
 
   playPronunciation(wordId) {
     // check cache
+    const downloadAudio = () => {
+      const loadMap = this.pronunciationLoadMap[wordId] = {
+        isAudioLoading: true,
+        audioLoadedPct: 0
+      };
+      const doneLoading = (audioBlob) => {
+        loadMap.audioLoadedPct = 100;
+        setTimeout(() => {
+          loadMap.isAudioLoading = false;
+          if (audioBlob) {
+            this.playAudioBlob(audioBlob);
+          }
+        }, 150);
+      };
+
+      this.api.getPronunciationRequest(wordId)
+        .withResponseType('blob')
+        .withDownloadProgressCallback(({ loaded, total }) => loadMap.audioLoadedPct = parseInt(loaded * 100.0 / total, 10))
+        .send()
+        .then((response) => {
+          const audioBlob = response.content;
+          this.pronunciationCache[wordId] = { audioBlob, lastModified };
+          doneLoading(audioBlob);
+        })
+        .catch((err) => {
+          doneLoading();
+        });
+    };
+
     let lastModified;
     if (this.pronunciationCache[wordId]) {
       const prevPronunciation = this.pronunciationCache[wordId];
@@ -78,41 +108,15 @@ export class MainPage {
           const word = response.content;
           lastModified = word.lastModified;
           hasNotChanged = prevPronunciation.lastModified === lastModified;
+          if (hasNotChanged) {
+            this.playAudioBlob(prevPronunciation.audioBlob);
+            return;
+          }
+          downloadAudio();
         });
-
-      if (hasNotChanged) {
-        this.playAudioBlob(prevPronunciation.audioBlob);
-        return;
-      }
+    } else {
+      downloadAudio();
     }
-
-    // download audio
-    const loadMap = this.pronunciationLoadMap[wordId] = {
-      isAudioLoading: true,
-      audioLoadedPct: 0
-    };
-    const doneLoading = (audioBlob) => {
-      loadMap.audioLoadedPct = 100;
-      setTimeout(() => {
-        loadMap.isAudioLoading = false;
-        if (audioBlob) {
-          this.playAudioBlob(audioBlob);
-        }
-      }, 150);
-    };
-
-    this.api.getPronunciationRequest(wordId)
-      .withResponseType('blob')
-      .withDownloadProgressCallback(({ loaded, total }) => loadMap.audioLoadedPct = parseInt(loaded * 100.0 / total, 10))
-      .send()
-      .then((response) => {
-        const audioBlob = response.content;
-        this.pronunciationCache[wordId] = { audioBlob, lastModified };
-        doneLoading(audioBlob);
-      })
-      .catch((err) => {
-        doneLoading();
-      });
   }
 
   handleRecordPronunciationClick(wordId) {
@@ -148,7 +152,17 @@ export class MainPage {
   }
 
   handleSavePronunciationFile(file) {
-    console.log(file);
+    this.isUploadingRecording = true;
+    this.api.getWordPronunciationUpdateRequest(this.uploadingForWordId, file)
+      .send()
+      .then(() => {
+        this.isUploadingRecording = false;
+        this.uploadingForWordId = null;
+      })
+      .catch((err) => {
+        console.warn(err);
+        this.isUploadingRecording = false;
+      });
   }
 
   handlePronunciationFileValidation(file) {

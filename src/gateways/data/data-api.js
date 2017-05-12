@@ -18,13 +18,13 @@ export class DataAPI {
 
   getPronunciationRequest(wordId) {
     return this.client
-      .createRequest(`/words/${wordId}/pronunciation`)
+      .createRequest(`/words/${wordId}/pronunciation?_=${new Date().getTime()}`)
       .asGet();
   }
 
   getWordRequest(wordId) {
     return this.client
-      .createRequest(`/words/${wordId}`)
+      .createRequest(`/words/${wordId}?_=${new Date().getTime()}`)
       .asGet();
   }
 

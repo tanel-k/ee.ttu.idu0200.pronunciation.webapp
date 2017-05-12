@@ -124,7 +124,8 @@ export class FileDropper {
   getByteSizes(bytes) {
     return {
       kiloBytes: parseInt(Math.round(bytes / 1000.0, 0), 10),
-      megaBytes: parseInt(Math.round(bytes / 1000000.0, 0), 10)
+      megaBytes: parseInt(Math.round(bytes / 1000000.0, 0), 10),
+      bytes
     };
   }
 
@@ -132,8 +133,9 @@ export class FileDropper {
     const byteSizes = this.getByteSizes(file.size);
     if (byteSizes.megaBytes) {
       return `~${byteSizes.megaBytes} MB`;
+    } else if (byteSizes.kiloBytes) {
+      return `~${byteSizes.kiloBytes} KB`;
     }
-
-    return `~${byteSizes.kiloBytes} MB`;
+    return `~${byteSizes.kiloBytes} bytes`;
   }
 }
