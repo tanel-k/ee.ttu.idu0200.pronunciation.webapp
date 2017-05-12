@@ -1,0 +1,41 @@
+<template>
+  <require from="./main-page.css"></require>
+  <div class="page-header" id="banner">
+    <div class="row">
+      <div class="col-lg-8 col-md-7 col-sm-6">
+        <h1>Word.ly</h1>
+        <p class="lead">Explore and share pronunciations</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-sm-12">
+      <input type="text" placeholder="Start typing to find words..." class="form-control" value.bind="query">
+    </div>
+  </div>
+
+  <hr>
+
+  <div class="row">
+    <div class="col-sm-12">
+      <!--<i if.bind="isLoading"  class="fa fa-circle-o-notch fa-spin"></i>-->
+      <div if.bind="isLoadingWords" class="progress progress-striped active">
+        <div class="progress-bar" css="width: ${wordsLoadedPct}%;"></div>
+      </div>
+      <template if.bind="!isLoadingWords && queryResult.length">
+        <ul class="list-group">
+          <li repeat.for="wordResult of queryResult" class="list-group-item">
+            <h4>${wordResult.word} <small>${wordResult.id}</small></h4>
+            <div if.bind="loadMap[wordResult.id].isAudioLoading" class="progress progress-striped active">
+              ${loadMap[wordResult.id].audioLoadedPct}%
+              <div class="progress-bar" css="width: ${loadMap[wordResult.id].audioLoadedPct}%;"></div>
+            </div>
+            <button click.delegate="playPronunciation(wordResult.id)" class="btn btn-default"><i class="fa fa-music"></i> Listen</button>
+            <button class="btn btn-default"><i class="fa fa-microphone"></i> Record</button>
+          </li>
+        </ul>
+      </template>
+    </div>
+  </div>
+</template>
