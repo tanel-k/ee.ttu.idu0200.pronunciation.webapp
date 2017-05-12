@@ -9,6 +9,40 @@
         <label>Drag the file here or click to select</label>
     </div>
   </div>
-  <p if.bind="hasStagedFile">${stagedFile.name} ${getFileSizeString(stagedFile)}</p>
-  <button disabled.bind="!(hasStagedFile && isStagedFileValid)" class="btn btn-block btn-success">Save</button>
+  <div if.bind="stagedFile" class="well staged-file-display">
+    File: <strong>${stagedFile.name}</strong> <em>${getFileSizeString(stagedFile)}</em>
+  </div>
+
+  <template if.bind="stagedFileErrors.length">
+    <div class="panel panel-danger">
+      <div class="panel-heading">
+        <h3 class="panel-title">This file is unacceptable</h3>
+      </div>
+      <div class="panel-body">
+        <ul>
+          <li repeat.for="error of stagedFileErrors">${error}</li>
+        </ul>
+      </div>
+    </div>
+  </template>
+
+  <div class="btn-group btn-group-justified">
+    <div class="btn-group">
+      <button
+        disabled.bind="!(hasStagedFile && isStagedFileValid)"
+        click.delegate="handleSaveClicked()"
+        class="btn btn-block btn-success">
+        <i if.bind="!isSaving" class="fa fa-save"></i>
+        <i if.bind="isSaving" class="fa fa-circle-o-notch fa-spin"></i>
+        ${isSaving? 'Saving...' : 'Save'}</button>
+    </div>
+    <div class="btn-group">
+      <button
+        disabled.bind="!(hasStagedFile)"
+        click.delegate="handleClearClicked()"
+        class="btn btn-block btn-warning">
+        <i class="fa fa-times-circle"></i> Clear</button>
+    </div>
+  </div>
+
 </template>

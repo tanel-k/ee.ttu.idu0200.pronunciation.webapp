@@ -60,8 +60,17 @@
               <div class="progress-bar" css="width: ${pronunciationLoadMap[wordResult.id].audioLoadedPct}%;"></div>
             </div>
 
-            <audio-recorder duration-seconds="5" save.bind="handleSavePronunciation" is-saving.bind="isUploadingRecording" if.bind="recordingForWordId === wordResult.id"></audio-recorder>
-            <file-dropper if.bind="uploadingForWordId === wordResult.id"></file-dropper>
+            <audio-recorder
+              duration-seconds="5"
+              save.bind="handleSavePronunciation"
+              is-saving.bind="isUploadingRecording"
+              if.bind="recordingForWordId === wordResult.id"></audio-recorder>
+
+            <file-dropper
+              is-saving.bind="isUploadingRecording"
+              validate-staged-file.bind="handlePronunciationFileValidation"
+              save-file.bind="handleSavePronunciationFile"
+              if.bind="uploadingForWordId === wordResult.id"></file-dropper>
           </li>
         </ul>
       </template>

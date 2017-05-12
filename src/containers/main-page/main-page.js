@@ -12,6 +12,7 @@ export class MainPage {
   constructor(api) {
     this.api = api;
     this.handleSavePronunciation = this.handleSavePronunciation.bind(this);
+    this.handlePronunciationFileValidation = this.handlePronunciationFileValidation.bind(this);
   }
 
   activate() {
@@ -144,6 +145,23 @@ export class MainPage {
         console.warn(err);
         this.isUploadingRecording = false;
       });
+  }
+
+  handleSavePronunciationFile(file) {
+    console.log(file);
+  }
+
+  handlePronunciationFileValidation(file) {
+    const errors = [];
+    if (file.type !== 'audio/mp3') {
+      errors.push('We only accept .mp3 files');
+    }
+
+    if (file.size >= 1000000) {
+      errors.push('The size of the file exceeds the maximum limitation of 1MB');
+    }
+
+    return errors;
   }
 
   playAudioBlob(audioBlob) {
