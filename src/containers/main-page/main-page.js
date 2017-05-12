@@ -22,6 +22,7 @@ export class MainPage {
   }
 
   initDataModel() {
+    this.recordingForWordId = null;
     this.pronunciationLoadMap = {};
     this.pronunciationCache = {};
     this.queryStoredInBackend = true;
@@ -108,6 +109,10 @@ export class MainPage {
       .catch((err) => {
         doneLoading();
       });
+  }
+
+  handleRecordPronunciationClick(wordId) {
+    this.recordingForWordId = wordId;
   }
 
   playAudioBlob(audioBlob) {
