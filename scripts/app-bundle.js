@@ -365,6 +365,7 @@ define('containers/main-page/main-page',['exports', 'aurelia-framework', '../../
       this.normalizedQuery = '';
 
       this.api = api;
+      this.handleSavePronunciation = this.handleSavePronunciation.bind(this);
     }
 
     MainPage.prototype.activate = function activate() {
@@ -377,13 +378,14 @@ define('containers/main-page/main-page',['exports', 'aurelia-framework', '../../
 
     MainPage.prototype.initDataModel = function initDataModel() {
       this.recordingForWordId = null;
+      this.isUploadingRecording = false;
+
       this.pronunciationLoadMap = {};
       this.pronunciationCache = {};
       this.queryStoredInBackend = true;
+
       this.isLoadingWords = false;
       this.wordsLoadedPct = 0;
-      this.isLoadingAudio = false;
-      this.audioLoadedPct = 0;
     };
 
     MainPage.prototype.queryChanged = function queryChanged() {
@@ -467,7 +469,24 @@ define('containers/main-page/main-page',['exports', 'aurelia-framework', '../../
     };
 
     MainPage.prototype.handleRecordPronunciationClick = function handleRecordPronunciationClick(wordId) {
+      if (this.recordingForWordId === wordId) {
+        this.recordingForWordId = null;
+        return;
+      }
       this.recordingForWordId = wordId;
+    };
+
+    MainPage.prototype.handleSavePronunciation = function handleSavePronunciation(audioBlob) {
+      var _this3 = this;
+
+      this.isUploadingRecording = true;
+      this.api.getWordPronunciationUpdateRequest(this.recordingForWordId, audioBlob).send().then(function () {
+        _this3.isUploadingRecording = false;
+        _this3.recordingForWordId = null;
+      }).catch(function (err) {
+        console.log(err);
+        _this3.isUploadingRecording = false;
+      });
     };
 
     MainPage.prototype.playAudioBlob = function playAudioBlob(audioBlob) {
@@ -528,10 +547,20 @@ define('gateways/data/data-api',['exports', 'aurelia-framework', 'aurelia-http-c
       return this.client.createRequest('/words/' + wordId).asGet();
     };
 
+    DataAPI.prototype.getWordPronunciationUpdateRequest = function getWordPronunciationUpdateRequest(wordId, audioBlob) {
+      var formData = new FormData();
+      formData.append('pronunciation', audioBlob);
+      return this.client.createRequest('/words/' + wordId + '/pronunciation').asPut().withContent(formData);
+    };
+
+    DataAPI.prototype.getWordCreationRequest = function getWordCreationRequest(word, audioBlob) {
+      return this.client.createRequest('/words').asPut();
+    };
+
     return DataAPI;
   }()) || _class);
 });
-define('resources/elements/audio-recorder',['exports', '../../lib/custom-audio-recorder'], function (exports, _customAudioRecorder) {
+define('resources/elements/audio-recorder',['exports', 'aurelia-framework', '../../lib/custom-audio-recorder'], function (exports, _aureliaFramework, _customAudioRecorder) {
   'use strict';
 
   Object.defineProperty(exports, "__esModule", {
@@ -545,6 +574,16 @@ define('resources/elements/audio-recorder',['exports', '../../lib/custom-audio-r
     return obj && obj.__esModule ? obj : {
       default: obj
     };
+  }
+
+  function _initDefineProp(target, property, descriptor, context) {
+    if (!descriptor) return;
+    Object.defineProperty(target, property, {
+      enumerable: descriptor.enumerable,
+      configurable: descriptor.configurable,
+      writable: descriptor.writable,
+      value: descriptor.initializer ? descriptor.initializer.call(context) : void 0
+    });
   }
 
   function _classCallCheck(instance, Constructor) {
@@ -571,9 +610,50 @@ define('resources/elements/audio-recorder',['exports', '../../lib/custom-audio-r
     };
   }();
 
-  var AudioRecorder = exports.AudioRecorder = function () {
+  function _applyDecoratedDescriptor(target, property, decorators, descriptor, context) {
+    var desc = {};
+    Object['ke' + 'ys'](descriptor).forEach(function (key) {
+      desc[key] = descriptor[key];
+    });
+    desc.enumerable = !!desc.enumerable;
+    desc.configurable = !!desc.configurable;
+
+    if ('value' in desc || desc.initializer) {
+      desc.writable = true;
+    }
+
+    desc = decorators.slice().reverse().reduce(function (desc, decorator) {
+      return decorator(target, property, desc) || desc;
+    }, desc);
+
+    if (context && desc.initializer !== void 0) {
+      desc.value = desc.initializer ? desc.initializer.call(context) : void 0;
+      desc.initializer = undefined;
+    }
+
+    if (desc.initializer === void 0) {
+      Object['define' + 'Property'](target, property, desc);
+      desc = null;
+    }
+
+    return desc;
+  }
+
+  function _initializerWarningHelper(descriptor, context) {
+    throw new Error('Decorating class property failed. Please ensure that transform-class-properties is enabled.');
+  }
+
+  var _desc, _value, _class, _descriptor, _descriptor2, _descriptor3;
+
+  var AudioRecorder = exports.AudioRecorder = (_class = function () {
     function AudioRecorder() {
       _classCallCheck(this, AudioRecorder);
+
+      _initDefineProp(this, 'save', _descriptor, this);
+
+      _initDefineProp(this, 'isSaving', _descriptor2, this);
+
+      _initDefineProp(this, 'durationSeconds', _descriptor3, this);
 
       this.initDataModel();
       this.onRecorderSuccess = this.onRecorderSuccess.bind(this);
@@ -604,8 +684,20 @@ define('resources/elements/audio-recorder',['exports', '../../lib/custom-audio-r
     };
 
     AudioRecorder.prototype.startRecording = function startRecording() {
+      var _this = this;
+
       this.audioBlob = null;
       this.isRecording = true;
+      this.timeLeft = parseInt(this.durationSeconds, 10);
+      var killTimeMillis = new Date().getTime() + this.timeLeft * 1000;
+      this.countdownInterval = setInterval(function () {
+        var currTimeMillis = new Date().getTime();
+        var currTimeLeft = parseInt(Math.round((killTimeMillis - currTimeMillis) / 1000.0, 0), 10);
+        _this.timeLeft = currTimeLeft >= 0 ? currTimeLeft : 0;
+        if (currTimeMillis >= killTimeMillis) {
+          _this.stopRecording();
+        }
+      }, 1000);
       this.recorder.startRecording();
     };
 
@@ -613,6 +705,9 @@ define('resources/elements/audio-recorder',['exports', '../../lib/custom-audio-r
       this.isRecording = false;
       this.isProcessingRecording = true;
       this.recorder.stopRecording();
+      if (this.countdownInterval) {
+        clearInterval(this.countdownInterval);
+      }
     };
 
     AudioRecorder.prototype.playRecording = function playRecording() {
@@ -621,6 +716,17 @@ define('resources/elements/audio-recorder',['exports', '../../lib/custom-audio-r
 
     AudioRecorder.prototype.detached = function detached() {
       this.resetDataModel();
+      if (this.countdownInterval) {
+        clearInterval(this.countdownInterval);
+      }
+    };
+
+    AudioRecorder.prototype.handleSaveClicked = function handleSaveClicked() {
+      if (typeof this.save === 'function') {
+        this.save(this.audioBlob);
+      } else {
+        console.warn('No save callback provided');
+      }
     };
 
     _createClass(AudioRecorder, [{
@@ -641,10 +747,23 @@ define('resources/elements/audio-recorder',['exports', '../../lib/custom-audio-r
     }]);
 
     return AudioRecorder;
-  }();
+  }(), (_descriptor = _applyDecoratedDescriptor(_class.prototype, 'save', [_aureliaFramework.bindable], {
+    enumerable: true,
+    initializer: null
+  }), _descriptor2 = _applyDecoratedDescriptor(_class.prototype, 'isSaving', [_aureliaFramework.bindable], {
+    enumerable: true,
+    initializer: function initializer() {
+      return false;
+    }
+  }), _descriptor3 = _applyDecoratedDescriptor(_class.prototype, 'durationSeconds', [_aureliaFramework.bindable], {
+    enumerable: true,
+    initializer: function initializer() {
+      return 10;
+    }
+  })), _class);
 });
 define('text!app.html', ['module'], function(module) { module.exports = "<template><div class=\"container\"><router-view></router-view></div></template>"; });
-define('text!containers/main-page/main-page.html', ['module'], function(module) { module.exports = "<template><require from=\"./main-page.css\"></require><div class=\"page-header\" id=\"banner\"><div class=\"row\"><div class=\"col-lg-8 col-md-7 col-sm-6\"><h1>Word.ly</h1><p class=\"lead\">Explore and share pronunciations</p></div></div></div><div class=\"row\"><div class=\"col-sm-12\"><input type=\"text\" placeholder=\"Start typing to find or register words...\" class=\"form-control\" value.bind=\"query\"><template if.bind=\"!queryStoredInBackend && normalizedQuery\"><span>'${normalizedQuery}' does not have an exact match. <a href=\"#\">Register this word?</a></span></template></div></div><hr><div class=\"row\"><div class=\"col-sm-12\"><div if.bind=\"isLoadingWords\" class=\"progress progress-striped active\"><div class=\"progress-bar\" css=\"width: ${wordsLoadedPct}%;\"></div></div><template if.bind=\"!isLoadingWords && queryResult.length\"><ul class=\"list-group\"><li repeat.for=\"wordResult of queryResult\" class=\"list-group-item\"><h4>${wordResult.word}</h4><div class=\"btn-group btn-group-justified word-controls-group ${pronunciationLoadMap[wordResult.id].isAudioLoading ? '' : 'not-loading'}\" role=\"group\"><div class=\"btn-group\"><button disabled.bind=\"pronunciationLoadMap[wordResult.id].isAudioLoading\" click.delegate=\"playPronunciation(wordResult.id)\" class=\"btn btn-default\"><i if.bind=\"!pronunciationLoadMap[wordResult.id].isAudioLoading\" class=\"fa fa-music\"></i> <i if.bind=\"pronunciationLoadMap[wordResult.id].isAudioLoading\" class=\"fa fa-circle-o-notch fa-spin\"></i> Listen</button></div><div class=\"btn-group\"><button class=\"btn btn-default ${recordingForWordId === wordResult.id ? 'active' : null}\" click.delegate=\"handleRecordPronunciationClick(wordResult.id)\"><i class=\"fa fa-microphone\"></i> Record</button></div><div class=\"btn-group\"><button class=\"btn btn-default\"><i class=\"fa fa-upload\"></i> Upload</button></div></div><div if.bind=\"pronunciationLoadMap[wordResult.id].isAudioLoading\" class=\"progress progress-striped active\"><div class=\"progress-bar\" css=\"width: ${pronunciationLoadMap[wordResult.id].audioLoadedPct}%;\"></div></div><audio-recorder if.bind=\"recordingForWordId === wordResult.id\"></audio-recorder></li></ul></template><template if.bind=\"!isLoadingWords && !queryResult.length && normalizedQuery\"><h4>No results for '${normalizedQuery}'</h4></template></div></div></template>"; });
+define('text!containers/main-page/main-page.html', ['module'], function(module) { module.exports = "<template><require from=\"./main-page.css\"></require><div class=\"page-header\" id=\"banner\"><div class=\"row\"><div class=\"col-lg-8 col-md-7 col-sm-6\"><h1>Word.ly</h1><p class=\"lead\">Explore and share pronunciations</p></div></div></div><div class=\"row\"><div class=\"col-sm-12\"><input type=\"text\" placeholder=\"Start typing to find or register words...\" class=\"form-control\" value.bind=\"query\"><template if.bind=\"!queryStoredInBackend && normalizedQuery\"><span>'${normalizedQuery}' does not have an exact match. <a href=\"#\">Register this word?</a></span></template></div></div><hr><div class=\"row\"><div class=\"col-sm-12\"><div if.bind=\"isLoadingWords\" class=\"progress progress-striped active\"><div class=\"progress-bar\" css=\"width: ${wordsLoadedPct}%;\"></div></div><template if.bind=\"!isLoadingWords && queryResult.length\"><ul class=\"list-group\"><li repeat.for=\"wordResult of queryResult\" class=\"list-group-item\"><h4>${wordResult.word}</h4><div class=\"btn-group btn-group-justified word-controls-group ${pronunciationLoadMap[wordResult.id].isAudioLoading ? '' : 'not-loading'}\" role=\"group\"><div class=\"btn-group\"><button disabled.bind=\"pronunciationLoadMap[wordResult.id].isAudioLoading\" click.delegate=\"playPronunciation(wordResult.id)\" class=\"btn btn-default\"><i if.bind=\"!pronunciationLoadMap[wordResult.id].isAudioLoading\" class=\"fa fa-music\"></i> <i if.bind=\"pronunciationLoadMap[wordResult.id].isAudioLoading\" class=\"fa fa-circle-o-notch fa-spin\"></i> Listen</button></div><div class=\"btn-group\"><button disabled.bind=\"isUploadingRecording\" class=\"btn btn-default ${recordingForWordId === wordResult.id ? 'active' : null}\" click.delegate=\"handleRecordPronunciationClick(wordResult.id)\"><i class=\"fa fa-microphone\"></i> ${recordingForWordId === wordResult.id ? 'Cancel' : 'Record'}</button></div><div class=\"btn-group\"><button class=\"btn btn-default\"><i class=\"fa fa-upload\"></i> Upload</button></div></div><div if.bind=\"pronunciationLoadMap[wordResult.id].isAudioLoading\" class=\"progress progress-striped active\"><div class=\"progress-bar\" css=\"width: ${pronunciationLoadMap[wordResult.id].audioLoadedPct}%;\"></div></div><audio-recorder duration-seconds=\"5\" save.bind=\"handleSavePronunciation\" is-saving.bind=\"isUploadingRecording\" if.bind=\"recordingForWordId === wordResult.id\"></audio-recorder></li></ul></template><template if.bind=\"!isLoadingWords && !queryResult.length && normalizedQuery\"><h4>No results for '${normalizedQuery}'</h4></template></div></div></template>"; });
 define('text!containers/main-page/main-page.css', ['module'], function(module) { module.exports = ".progress {\n  margin-bottom: 0 !important; }\n\n.word-controls-group.not-loading {\n  margin-bottom: 6px; }\n"; });
-define('text!resources/elements/audio-recorder.html', ['module'], function(module) { module.exports = "<template><div if.bind=\"hasPermission && isAttached\" class=\"btn-group btn-group-justified\"><div class=\"btn-group\"><button if.bind=\"!isRecording\" click.delegate=\"startRecording()\" class=\"btn btn-default btn-primary\"><i class=\"fa fa-circle\"></i> Start</button> <button if.bind=\"isRecording\" click.delegate=\"stopRecording()\" class=\"btn btn-default btn-danger\"><i class=\"fa fa-stop\"></i> Stop</button></div><div class=\"btn-group\"><button disabled.bind=\"!hasAudioData || isPlaying\" class=\"btn btn-default btn-success\" click.delegate=\"playRecording()\"><i class=\"fa fa-music\"></i> ${isPlaying? 'Playing' : 'Play'}</button></div><div class=\"btn-group\"><button disabled.bind=\"!hasAudioData\" class=\"btn btn-default btn-success\"><i class=\"fa fa-save\"></i> Save</button></div></div><p if.bind=\"!hasPermission && isAttached\">You have disallowed access to your recording device.</p></template>"; });
+define('text!resources/elements/audio-recorder.html', ['module'], function(module) { module.exports = "<template><div if.bind=\"hasPermission && isAttached\" class=\"btn-group btn-group-justified\"><div class=\"btn-group\"><button if.bind=\"!isRecording\" disabled.bind=\"isSaving || isPlaying\" click.delegate=\"startRecording()\" class=\"btn btn-default btn-primary\"><i class=\"fa fa-circle\"></i> ${hasAudioData? 'Restart' : 'Start'}</button> <button if.bind=\"isRecording\" click.delegate=\"stopRecording()\" disabled.bind=\"isSaving\" class=\"btn btn-default btn-danger\"><i class=\"fa fa-stop\"></i> Stop (${timeLeft})</button></div><div class=\"btn-group\"><button disabled.bind=\"!hasAudioData || isPlaying || isSaving\" class=\"btn btn-default\" click.delegate=\"playRecording()\"><i class=\"fa fa-music\"></i> ${isPlaying? 'Playing' : 'Play'}</button></div><div class=\"btn-group\"><button disabled.bind=\"!hasAudioData || isSaving\" click.delegate=\"handleSaveClicked()\" class=\"btn btn-default btn-success\"><i if.bind=\"!isSaving\" class=\"fa fa-save\"></i> <i if.bind=\"isSaving\" class=\"fa fa-circle-o-notch fa-spin\"></i> ${isSaving? 'Saving...' : 'Save'}</button></div></div><p if.bind=\"!hasPermission && isAttached\">You have disallowed access to your recording device.</p></template>"; });
 //# sourceMappingURL=app-bundle.js.map

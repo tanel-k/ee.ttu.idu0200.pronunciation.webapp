@@ -1,6 +1,12 @@
+import { bindable } from 'aurelia-framework';
+
 import CustomAudioRecorder from '../../lib/custom-audio-recorder';
 
 export class AudioRecorder {
+  @bindable save;
+  @bindable isSaving = false;
+  @bindable durationSeconds = 10;
+
   constructor() {
     this.initDataModel();
     this.onRecorderSuccess = this.onRecorderSuccess.bind(this);
@@ -45,6 +51,16 @@ export class AudioRecorder {
   startRecording() {
     this.audioBlob = null;
     this.isRecording = true;
+    this.timeLeft = parseInt(this.durationSeconds, 10);
+    const killTimeMillis = new Date().getTime() + this.timeLeft * 1000;
+    this.countdownInterval = setInterval(() => {
+      const currTimeMillis = new Date().getTime();
+      const currTimeLeft = parseInt(Math.round((killTimeMillis - currTimeMillis) / 1000.0, 0), 10);
+      this.timeLeft = currTimeLeft >= 0 ? currTimeLeft : 0;
+      if (currTimeMillis >= killTimeMillis) {
+        this.stopRecording();
+      }
+    }, 1000);
     this.recorder.startRecording();
   }
 
@@ -52,6 +68,9 @@ export class AudioRecorder {
     this.isRecording = false;
     this.isProcessingRecording = true;
     this.recorder.stopRecording();
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+    }
   }
 
   playRecording() {
@@ -60,5 +79,16 @@ export class AudioRecorder {
 
   detached() {
     this.resetDataModel();
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+    }
+  }
+
+  handleSaveClicked() {
+    if (typeof this.save === 'function') {
+      this.save(this.audioBlob);
+    } else {
+      console.warn('No save callback provided');
+    }
   }
 }

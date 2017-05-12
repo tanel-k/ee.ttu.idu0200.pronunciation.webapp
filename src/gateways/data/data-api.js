@@ -27,4 +27,19 @@ export class DataAPI {
       .createRequest(`/words/${wordId}`)
       .asGet();
   }
+
+  getWordPronunciationUpdateRequest(wordId, audioBlob) {
+    const formData = new FormData();
+    formData.append('pronunciation', audioBlob);
+    return this.client
+      .createRequest(`/words/${wordId}/pronunciation`)
+      .asPut()
+      .withContent(formData);
+  }
+
+  getWordCreationRequest(word, audioBlob) {
+    return this.client
+      .createRequest('/words')
+      .asPut();
+  }
 }

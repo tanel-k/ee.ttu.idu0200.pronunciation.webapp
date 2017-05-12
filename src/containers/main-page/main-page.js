@@ -11,6 +11,7 @@ export class MainPage {
 
   constructor(api) {
     this.api = api;
+    this.handleSavePronunciation = this.handleSavePronunciation.bind(this);
   }
 
   activate() {
@@ -23,13 +24,14 @@ export class MainPage {
 
   initDataModel() {
     this.recordingForWordId = null;
+    this.isUploadingRecording = false;
+
     this.pronunciationLoadMap = {};
     this.pronunciationCache = {};
     this.queryStoredInBackend = true;
+
     this.isLoadingWords = false;
     this.wordsLoadedPct = 0;
-    this.isLoadingAudio = false;
-    this.audioLoadedPct = 0;
   }
 
   queryChanged() {
@@ -112,7 +114,25 @@ export class MainPage {
   }
 
   handleRecordPronunciationClick(wordId) {
+    if (this.recordingForWordId === wordId) {
+      this.recordingForWordId = null;
+      return;
+    }
     this.recordingForWordId = wordId;
+  }
+
+  handleSavePronunciation(audioBlob) {
+    this.isUploadingRecording = true;
+    this.api.getWordPronunciationUpdateRequest(this.recordingForWordId, audioBlob)
+      .send()
+      .then(() => {
+        this.isUploadingRecording = false;
+        this.recordingForWordId = null;
+      })
+      .catch((err) => {
+        console.log(err);
+        this.isUploadingRecording = false;
+      });
   }
 
   playAudioBlob(audioBlob) {
