@@ -23,6 +23,7 @@ export class MainPage {
   }
 
   initDataModel() {
+    this.uploadingForWordId = null;
     this.recordingForWordId = null;
     this.isUploadingRecording = false;
 
@@ -114,11 +115,21 @@ export class MainPage {
   }
 
   handleRecordPronunciationClick(wordId) {
+    this.uploadingForWordId = null;
     if (this.recordingForWordId === wordId) {
       this.recordingForWordId = null;
       return;
     }
     this.recordingForWordId = wordId;
+  }
+
+  handleUploadPronunciationClick(wordId) {
+    this.recordingForWordId = null;
+    if (this.uploadingForWordId === wordId) {
+      this.uploadingForWordId = null;
+      return;
+    }
+    this.uploadingForWordId = wordId;
   }
 
   handleSavePronunciation(audioBlob) {
@@ -130,7 +141,7 @@ export class MainPage {
         this.recordingForWordId = null;
       })
       .catch((err) => {
-        console.log(err);
+        console.warn(err);
         this.isUploadingRecording = false;
       });
   }

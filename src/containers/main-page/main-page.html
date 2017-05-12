@@ -40,14 +40,20 @@
                   <i if.bind="pronunciationLoadMap[wordResult.id].isAudioLoading" class="fa fa-circle-o-notch fa-spin"></i>
                   Listen</button>
               </div>
+
               <div class="btn-group">
                 <button 
                   disabled.bind="isUploadingRecording"
                   class="btn btn-default ${recordingForWordId === wordResult.id ? 'active' : null}" 
                   click.delegate="handleRecordPronunciationClick(wordResult.id)"><i class="fa fa-microphone"></i> ${recordingForWordId === wordResult.id ? 'Cancel' : 'Record'}</button>
               </div>
+
               <div class="btn-group">
-                <button class="btn btn-default"><i class="fa fa-upload"></i> Upload</button>
+                <button
+                  disabled.bind="isUploadingRecording"
+                  class="btn btn-default ${uploadingForWordId === wordResult.id ? 'active' : null}"
+                  click.delegate="handleUploadPronunciationClick(wordResult.id)"
+                  ><i class="fa fa-upload"></i> ${uploadingForWordId === wordResult.id ? 'Cancel' : 'Upload'}</button>
               </div>
             </div>
             <div if.bind="pronunciationLoadMap[wordResult.id].isAudioLoading" class="progress progress-striped active">
@@ -55,6 +61,7 @@
             </div>
 
             <audio-recorder duration-seconds="5" save.bind="handleSavePronunciation" is-saving.bind="isUploadingRecording" if.bind="recordingForWordId === wordResult.id"></audio-recorder>
+            <file-dropper if.bind="uploadingForWordId === wordResult.id"></file-dropper>
           </li>
         </ul>
       </template>
