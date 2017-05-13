@@ -1,5 +1,5 @@
 export default {
-  debug: true,
-  testing: true,
-  gatewayRootURL: 'http://localhost:8080'
+  debug: false,
+  testing: false,
+  gatewayRootURL: 'http://lowcost-env.pbxrtzvnqc.eu-central-1.elasticbeanstalk.com'
 };
