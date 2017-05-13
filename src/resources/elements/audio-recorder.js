@@ -49,6 +49,11 @@ export class AudioRecorder {
   }
 
   startRecording() {
+    if (!this.recorder.hasPermission()) {
+      this.recorder.requestPermission();
+      return;
+    }
+
     this.audioBlob = null;
     this.isRecording = true;
     this.timeLeft = parseInt(this.durationSeconds, 10);

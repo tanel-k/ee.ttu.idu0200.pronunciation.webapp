@@ -14,13 +14,14 @@ export default class AudioRecorder {
   recordingStopErrorCallback;
 
   constructor(recordingStopSuccessCallback, recordingStopErrorCallback) {
-    navigator.getUserMedia = (navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia);
     this.recordingStopSuccessCallback = recordingStopSuccessCallback;
     this.recordingStopErrorCallback = recordingStopErrorCallback;
   }
   /* Asks the user for their this.permission to access the computer's microphone. */
 
   requestPermission() {
+    navigator.getUserMedia = (navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia);
+
     if (navigator.getUserMedia) {
       // Definitions
       const constraints = { audio: true };
@@ -70,28 +71,28 @@ export default class AudioRecorder {
 
   /* Starts the recording. */
   startRecording() {
-    if (this.mediaRecorder !== null) {
+    if (this.mediaRecorder) {
       this.mediaRecorder.start();
     }
   }
 
   /* Stops the recording. */
   stopRecording() {
-    if (this.mediaRecorder !== null) {
+    if (this.mediaRecorder) {
       this.mediaRecorder.stop();
     }
   }
 
   /* Plays the recording. */
   play() {
-    if (this.audio !== null) {
+    if (this.audio) {
       this.audio.play();
       this.playing = true;
     }
   }
   /* Pauses the recording. */
   pause() {
-    if (this.audio !== null) {
+    if (this.audio) {
       this.audio.pause();
       this.playing = false;
     }
@@ -99,7 +100,7 @@ export default class AudioRecorder {
 
   /* Stops the recording from this.playing. Calling 'play' will start it from the beginning. */
   stop() {
-    if (this.audio !== null) {
+    if (this.audio) {
       this.audio.pause();
       this.audio.currentTime = 0;
       this.playing = false;
@@ -108,21 +109,21 @@ export default class AudioRecorder {
 
   /* Loops the recorded this.audio. */
   loop(bool) {
-    if (this.audio !== null) {
+    if (this.audio) {
       (bool === true) ? this.audio.loop = true : this.audio.loop = false;
     }
   }
 
   /* Goes to the beginning of the this.audio. */
   stepBackward() {
-    if (this.audio !== null) {
+    if (this.audio) {
       this.audio.currentTime = 0;
     }
   }
 
   /* Goes to the end of the this.audio. */
   stepForward() {
-    if (this.audio !== null) {
+    if (this.audio) {
       this.audio.currentTime = this.audio.duration;
     }
   }
