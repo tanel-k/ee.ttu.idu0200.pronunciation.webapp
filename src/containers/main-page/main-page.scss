@@ -5,3 +5,17 @@
 .word-controls-group.not-loading {
   margin-bottom: 6px;
 }
+
+.word-create-group {
+  margin-bottom: 6px;
+}
+
+.no-entry-label {
+  font-size: 14px;
+  display: inline-block;
+  margin-top: 5px;
+}
+
+.toast, .toast-message {
+  cursor: default !important;
+}

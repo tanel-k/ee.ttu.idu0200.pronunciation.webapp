@@ -18,13 +18,13 @@ export class DataAPI {
 
   getPronunciationRequest(wordId) {
     return this.client
-      .createRequest(`/words/${wordId}/pronunciation?_=${new Date().getTime()}`)
+      .createRequest(`/words/${wordId}/pronunciation`)
       .asGet();
   }
 
   getWordRequest(wordId) {
     return this.client
-      .createRequest(`/words/${wordId}?_=${new Date().getTime()}`)
+      .createRequest(`/words/${wordId}`)
       .asGet();
   }
 
@@ -38,8 +38,12 @@ export class DataAPI {
   }
 
   getWordCreationRequest(word, audioBlob) {
+    const formData = new FormData();
+    formData.append('word', word);
+    formData.append('pronunciation', audioBlob);
     return this.client
       .createRequest('/words')
-      .asPut();
+      .asPut()
+      .withContent(formData);
   }
 }

@@ -4,6 +4,8 @@ import { bindable } from 'aurelia-framework';
 import { normalizeWord } from '../../lib/word-utils';
 import { DataAPI } from '../../gateways/data/data-api';
 
+import * as Toastr from 'toastr';
+
 @inject(DataAPI)
 export class MainPage {
   @bindable query = '';
@@ -14,6 +16,7 @@ export class MainPage {
     this.handleSavePronunciation = this.handleSavePronunciation.bind(this);
     this.handlePronunciationFileValidation = this.handlePronunciationFileValidation.bind(this);
     this.handleSavePronunciationFile = this.handleSavePronunciationFile.bind(this);
+    this.handleSaveNewWord = this.handleSaveNewWord.bind(this);
   }
 
   activate() {
@@ -29,6 +32,10 @@ export class MainPage {
     this.recordingForWordId = null;
     this.isUploadingRecording = false;
 
+    this.isCreatingWord = false;
+    this.isUploadingNewWord = false;
+    this.isRecordingNewWord = false;
+
     this.pronunciationLoadMap = {};
     this.pronunciationCache = {};
     this.queryStoredInBackend = true;
@@ -38,6 +45,10 @@ export class MainPage {
   }
 
   queryChanged() {
+    this.queryWords();
+  }
+
+  queryWords() {
     const normalizedQuery = this.normalizedQuery = normalizeWord(this.query);
     this.queryResult = [];
     this.queryStoredInBackend = true;
@@ -68,8 +79,7 @@ export class MainPage {
   }
 
   playPronunciation(wordId) {
-    // check cache
-    const downloadAudio = () => {
+    const downloadAudio = (lastModified) => {
       const loadMap = this.pronunciationLoadMap[wordId] = {
         isAudioLoading: true,
         audioLoadedPct: 0
@@ -98,25 +108,22 @@ export class MainPage {
         });
     };
 
+    // check cache
     let lastModified;
-    if (this.pronunciationCache[wordId]) {
-      const prevPronunciation = this.pronunciationCache[wordId];
-      let hasNotChanged = true;
-      this.api.getWordRequest(wordId)
-        .send()
-        .then((response) => {
-          const word = response.content;
-          lastModified = word.lastModified;
-          hasNotChanged = prevPronunciation.lastModified === lastModified;
-          if (hasNotChanged) {
-            this.playAudioBlob(prevPronunciation.audioBlob);
-            return;
-          }
-          downloadAudio();
-        });
-    } else {
-      downloadAudio();
-    }
+    const prevPronunciation = this.pronunciationCache[wordId];
+    let hasNotChanged = true;
+    this.api.getWordRequest(wordId)
+      .send()
+      .then((response) => {
+        const word = response.content;
+        lastModified = word.lastModified;
+        hasNotChanged = prevPronunciation && prevPronunciation.lastModified === lastModified;
+        if (hasNotChanged) {
+          this.playAudioBlob(prevPronunciation.audioBlob);
+          return;
+        }
+        downloadAudio(lastModified);
+      });
   }
 
   handleRecordPronunciationClick(wordId) {
@@ -142,11 +149,12 @@ export class MainPage {
     this.api.getWordPronunciationUpdateRequest(this.recordingForWordId, audioBlob)
       .send()
       .then(() => {
+        notifySuccess('Saved!');
         this.isUploadingRecording = false;
         this.recordingForWordId = null;
       })
       .catch((err) => {
-        console.warn(err);
+        notifyFailure('An unexpected error occurred');
         this.isUploadingRecording = false;
       });
   }
@@ -156,13 +164,60 @@ export class MainPage {
     this.api.getWordPronunciationUpdateRequest(this.uploadingForWordId, file)
       .send()
       .then(() => {
+        notifySuccess('Saved!');
         this.isUploadingRecording = false;
         this.uploadingForWordId = null;
       })
       .catch((err) => {
-        console.warn(err);
+        notifyFailure('An unexpected error occurred');
         this.isUploadingRecording = false;
       });
+  }
+
+  handleSaveNewWord(audioBlob) {
+    this.isUploadingRecording = true;
+    this.api.getWordCreationRequest(this.normalizedQuery, audioBlob)
+      .send()
+      .then(() => {
+        notifySuccess('Saved!');
+        this.isUploadingRecording = false;
+        this.setNotRegisteringWord();
+        this.queryWords();
+      })
+      .catch((err) => {
+        notifyFailure('An unexpected error occurred');
+        this.isUploadingRecording = false;
+      });
+  }
+
+  setRegisteringWord() {
+    this.isCreatingWord = true;
+    this.isUploadingNewWord = false;
+    this.isRecordingNewWord = false;
+  }
+
+  setNotRegisteringWord() {
+    this.isCreatingWord = false;
+    this.isUploadingNewWord = false;
+    this.isRecordingNewWord = false;
+  }
+
+  handleRegisterWordClick() {
+    this.setRegisteringWord();
+  }
+
+  handleRegisterWordCancelClick() {
+    this.setNotRegisteringWord();
+  }
+
+  handleNewWordRecordClick() {
+    this.isUploadingNewWord = false;
+    this.isRecordingNewWord = true;
+  }
+
+  handleNewWordUploadClick() {
+    this.isUploadingNewWord = true;
+    this.isRecordingNewWord = false;
   }
 
   handlePronunciationFileValidation(file) {
@@ -172,7 +227,7 @@ export class MainPage {
     }
 
     if (file.size >= 1000000) {
-      errors.push('The size of the file exceeds the maximum limitation of 1MB');
+      errors.push('The size of the file exceeds 1MB');
     }
 
     return errors;
@@ -183,3 +238,11 @@ export class MainPage {
     this.audioPlayer.play();
   }
 }
+
+const notifySuccess = (message) => {
+  Toastr.info(message, '', { timeOut: 750 });
+};
+
+const notifyFailure = (message) => {
+  Toastr.warning(message, '', { timeOut: 1000  });
+};

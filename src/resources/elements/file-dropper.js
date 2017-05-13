@@ -8,6 +8,7 @@ export class FileDropper {
   @bindable isSaving = false;
   @bindable saveFile;
   @bindable validateStagedFile;
+  @bindable acceptedTypes = '';
 
   stagedFile;
 

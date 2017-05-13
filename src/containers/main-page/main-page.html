@@ -1,5 +1,7 @@
 <template>
   <require from="./main-page.css"></require>
+  <require from="toastr/build/toastr.min.css"></require>
+
   <div class="page-header" id="banner">
     <div class="row">
       <div class="col-lg-8 col-md-7 col-sm-6">
@@ -11,9 +13,51 @@
 
   <div class="row">
     <div class="col-sm-12">
-      <input type="text" placeholder="Start typing to find or register words..." class="form-control" value.bind="query">
-      <template if.bind="!queryStoredInBackend && normalizedQuery">
-        <span>'${normalizedQuery}' does not have an exact match. <a href="#">Register this word?</a></span>
+      <input
+        type="text"
+        disabled.bind="isCreatingWord"
+        placeholder="Start typing to find or register pronunciations..."
+        class="form-control"
+        value.bind="query">
+      <template if.bind="!queryStoredInBackend && normalizedQuery && !isCreatingWord">
+        <span class="no-entry-label">We have no entries matching '${normalizedQuery}'. <a href="#" click.delegate="handleRegisterWordClick()">Register it?</a></span>
+      </template>
+      <template if.bind="isCreatingWord">
+        <h4>Register '${normalizedQuery}'</h4>
+        <p>Please provide a pronunciation to register this word</p>
+        <div class="btn-group btn-group-justified word-create-group">
+          <div class="btn-group">
+              <button 
+                disabled.bind="isUploadingRecording"
+                class="btn btn-default ${isRecordingNewWord ? 'active' : ''}" 
+                click.delegate="handleNewWordRecordClick()"><i class="fa fa-microphone"></i> ${recordingForWordId === wordResult.id ? 'Cancel' : 'Record'}</button>
+          </div>
+          <div class="btn-group">
+            <button
+              disabled.bind="isUploadingRecording"
+              class="btn btn-default ${isUploadingNewWord ? 'active' : ''}"
+              click.delegate="handleNewWordUploadClick()"
+              ><i class="fa fa-upload"></i> ${uploadingForWordId === wordResult.id ? 'Cancel' : 'Upload'}</button>
+          </div>
+          <div class="btn-group">
+            <button
+              disabled.bind="isUploadingRecording"
+              class="btn btn-warning"
+              click.delegate="handleRegisterWordCancelClick()"
+              ><i class="fa fa-times-circle"></i> Cancel</button>
+          </div>
+        </div>
+        <audio-recorder
+          if.bind="isRecordingNewWord"
+          duration-seconds="5"
+          save.bind="handleSaveNewWord"
+          is-saving.bind="isUploadingRecording"></audio-recorder>
+        <file-dropper
+          accepted-types='.mp3';
+          if.bind="isUploadingNewWord"
+          is-saving.bind="isUploadingRecording"
+          validate-staged-file.bind="handlePronunciationFileValidation"
+          save-file.bind="handleSaveNewWord"></file-dropper>
       </template>
     </div>
   </div>
@@ -38,20 +82,20 @@
                   class="btn btn-default">
                   <i if.bind="!pronunciationLoadMap[wordResult.id].isAudioLoading" class="fa fa-music"></i>
                   <i if.bind="pronunciationLoadMap[wordResult.id].isAudioLoading" class="fa fa-circle-o-notch fa-spin"></i>
-                  Listen</button>
+                  Pronounce</button>
               </div>
 
               <div class="btn-group">
                 <button 
                   disabled.bind="isUploadingRecording"
-                  class="btn btn-default ${recordingForWordId === wordResult.id ? 'active' : null}" 
+                  class="btn btn-default ${recordingForWordId === wordResult.id ? 'active' : ''}" 
                   click.delegate="handleRecordPronunciationClick(wordResult.id)"><i class="fa fa-microphone"></i> ${recordingForWordId === wordResult.id ? 'Cancel' : 'Record'}</button>
               </div>
 
               <div class="btn-group">
                 <button
                   disabled.bind="isUploadingRecording"
-                  class="btn btn-default ${uploadingForWordId === wordResult.id ? 'active' : null}"
+                  class="btn btn-default ${uploadingForWordId === wordResult.id ? 'active' : ''}"
                   click.delegate="handleUploadPronunciationClick(wordResult.id)"
                   ><i class="fa fa-upload"></i> ${uploadingForWordId === wordResult.id ? 'Cancel' : 'Upload'}</button>
               </div>
@@ -67,6 +111,7 @@
               if.bind="recordingForWordId === wordResult.id"></audio-recorder>
 
             <file-dropper
+              accepted-types='.mp3';
               is-saving.bind="isUploadingRecording"
               validate-staged-file.bind="handlePronunciationFileValidation"
               save-file.bind="handleSavePronunciationFile"
