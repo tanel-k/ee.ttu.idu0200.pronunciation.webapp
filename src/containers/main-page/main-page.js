@@ -6,12 +6,13 @@ import { DataAPI } from '../../gateways/data/data-api';
 
 import * as Toastr from 'toastr';
 
-@inject(DataAPI)
+@inject(Element, DataAPI)
 export class MainPage {
   @bindable query = '';
   normalizedQuery = '';
 
-  constructor(api) {
+  constructor(element, api) {
+    this.element = element;
     this.api = api;
     this.handleSavePronunciation = this.handleSavePronunciation.bind(this);
     this.handlePronunciationFileValidation = this.handlePronunciationFileValidation.bind(this);
@@ -25,6 +26,8 @@ export class MainPage {
 
   attached() {
     this.audioPlayer = new window.Audio();
+    this.initDOMHooks();
+    this.wireEventListeners();
   }
 
   initDataModel() {
@@ -42,6 +45,39 @@ export class MainPage {
 
     this.isLoadingWords = false;
     this.wordsLoadedPct = 0;
+  }
+
+  initDOMHooks() {
+    this.wordFinderInput = this.element.querySelector('#word-finder');
+    this.wordFinderErrorLabel = this.element.querySelector('#word-finder-error');
+  }
+
+  wireEventListeners() {
+    let lastMessageTimeout;
+    let lastClearTimeout;
+    this.wordFinderInput.addEventListener('disallowed-key', () => {
+      this.wordFinderErrorLabel.classList.remove('fadeOut');
+
+      if (lastMessageTimeout) {
+        clearTimeout(lastMessageTimeout);
+        if (lastClearTimeout) {
+          clearTimeout(lastClearTimeout);
+        }
+      }
+
+      this.wordFinderErrorLabel.classList.add('fadeIn');
+      this.wordFinderErrorLabel.innerText = 'Words can only contain alphabetical characters';
+
+      // message should be temporary
+      lastMessageTimeout = setTimeout(() => {
+        this.wordFinderErrorLabel.classList.remove('fadeIn');
+        this.wordFinderErrorLabel.classList.add('fadeOut');
+        // delay for fadeout
+        lastClearTimeout = setTimeout(() => {
+          this.wordFinderErrorLabel.innerText = '';
+        }, 500);
+      }, 1000);
+    });
   }
 
   queryChanged() {
@@ -118,7 +154,7 @@ export class MainPage {
         const word = response.content;
         lastModified = word.lastModified;
         hasNotChanged = prevPronunciation && prevPronunciation.lastModified === lastModified;
-        if (hasNotChanged) {
+        if (hasNotChanged && prevPronunciation.audioBlob) {
           this.playAudioBlob(prevPronunciation.audioBlob);
           return;
         }
