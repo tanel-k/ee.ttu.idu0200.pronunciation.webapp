@@ -96,7 +96,7 @@ export class MainPage {
         this.wordsLoadedPct = 100;
         setTimeout(() => {
           this.isLoadingWords = false;
-          this.queryStoredInBackend = typeof words.find(word => word.word === normalizedQuery) !== 'undefined';
+          this.queryStoredInBackend = !words || typeof words.find(word => word.word === normalizedQuery) !== 'undefined';
           this.queryResult = words;
         }, 150);
       };
@@ -109,6 +109,7 @@ export class MainPage {
           doneLoading(words);
         })
         .catch((err) => {
+          notifyFailure('An unexpected error occurred');
           doneLoading();
         });
     }
@@ -140,6 +141,7 @@ export class MainPage {
           doneLoading(audioBlob);
         })
         .catch((err) => {
+          notifyFailure('An unexpected error occurred');
           doneLoading();
         });
     };
@@ -159,6 +161,9 @@ export class MainPage {
           return;
         }
         downloadAudio(lastModified);
+      })
+      .catch((err) => {
+        notifyFailure('An unexpected error occurred');
       });
   }
 
